@@ -20,8 +20,8 @@ The frame is therefore split into two parts:
  - Each particle is put in one of the appropriate lists using global atomics based on projected size in the viewport, frustum-culling is also applied in advance.
  - A single shader invocation manipulates the DrawIndirect commands based on the atomic counter values. This step is required as the sample uses an alternative way to classic instancing.
 2. **Rendering**:
-- Every list is drawn by one or two ```glDrawElementsIndirect``` calls to render the particles. 
-- Instancing is done via batching in two steps (see later).
+ - Every list is drawn by one or two ```glDrawElementsIndirect``` calls to render the particles. 
+ - Instancing is done via batching in two steps (see later).
 
 ``` cpp
 struct DrawElementsIndirect {
@@ -47,19 +47,20 @@ The instanced mesh is replicated *batchSize*-often in the source VBO/IBO, instea
 With classic instancing we simply would use the **gl_InstanceID** to find out which instance we are, but here we use an alternative formula:
 
 ``` cpp
-instanceID = batchedID + gl_InstanceID * MESH_BATCHSIZE
+instanceID = batchedID + gl_InstanceID * MESH_BATCHSIZE;
 ```
 
 **batchedID** represents which of the replicated batched mesh we currently render. While it doesn't exist, we can derive it from the **gl_VertexID**, as the index buffer accounts for the vertex data replication in the VBO. The index values (gl_VertexID) of a batched mesh are in the range [MESH_VERTICES * batchedID, (MESH_VERTICES * (batchedID+1)) -1]
 
 ``` cpp
-instanceID = (gl_VertexID / MESH_VERTICES) + gl_InstanceID * MESH_BATCHSIZE
+instanceID = (gl_VertexID / MESH_VERTICES) + gl_InstanceID * MESH_BATCHSIZE;
 ```
 
 When drawing the rest of the meshes with the second drawcall, one has to offset the instanceID by the meshes already drawn by first.
 
 ``` cpp
-instanceID += ( int(firstCmd.instanceCount) * ( int(firstCmd.elementCount) / MESH_INDICES) )
+instanceID +=   int(firstCmd.instanceCount) * 
+              ( int(firstCmd.elementCount) / MESH_INDICES); 
 ```
 
 #### Performance
