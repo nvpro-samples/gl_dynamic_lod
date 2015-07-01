@@ -9,8 +9,14 @@
   layout(binding=TEX_PARTICLES)       uniform samplerBuffer   texParticles;
   
   int particle = texelFetch(texParticleIndices, gl_VertexID).x;
-  vec4 inPosSize  = texelFetch(texParticles, particle*2+0);
-  vec4 inColor    = texelFetch(texParticles, particle*2+1);
+#if USE_COMPACT_PARTICLE
+  vec4 inPosColor = texelFetch(texParticles, particle);
+  vec4 inPosSize  = vec4(inPosColor.xyz, scene.particleSize);
+  vec4 inColor    = unpackUnorm4x8(floatBitsToUint(inPosColor.w));
+#else
+  vec4 inPosSize  = texelFetch(texParticles, particle*2 + 0);
+  vec4 inColor    = texelFetch(texParticles, particle*2 + 1);
+#endif
 #else
   in layout(location=VERTEX_POS)    vec4 inPosSize;
   in layout(location=VERTEX_COLOR)  vec4 inColor;
@@ -22,10 +28,14 @@ out Interpolants {
 
 void main()
 {
-
+#if USE_COMPACT_PARTICLE
+  float size = scene.particleSize;
+#else
+  float size = inPosSize.w;
+#endif
 
   vec4 hPos = scene.viewProjMatrix * vec4(inPosSize.xyz,1);
-  vec2 pixelsize = 2.0 * inPosSize.w * scene.viewpixelsize / hPos.w;
+  vec2 pixelsize = 2.0 * size * scene.viewpixelsize / hPos.w;
   
   gl_PointSize = dot(pixelsize,vec2(0.5));
   gl_Position  = hPos;

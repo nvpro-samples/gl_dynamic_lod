@@ -11,8 +11,12 @@ in Data {
 } IN[];
 
 patch in PerPatch {
+#if USE_COMPACT_PARTICLE
+  vec4  posColor;
+#else
   vec4  posSize;
   vec4  color;
+#endif
 }INpatch;
 
 out Interpolants {
@@ -27,11 +31,18 @@ void main()
   vec3 p2 = gl_TessCoord.z * IN[2].pos;
   
   vec3 normal = normalize(p0 + p1 + p2);
+#if USE_COMPACT_PARTICLE
+  vec3 pos    = INpatch.posColor.xyz + normal * scene.particleSize;
+  OUT.color   = unpackUnorm4x8(floatBitsToUint(INpatch.posColor.w));
+#else
   vec3 pos    = INpatch.posSize.xyz + normal * INpatch.posSize.w;
+  OUT.color   = INpatch.color;
+#endif
+  
   
   gl_Position = scene.viewProjMatrix * vec4(pos,1);
   OUT.normal  = normal;
-  OUT.color   = INpatch.color;
+  
 }
 
 /*-----------------------------------------------------------------------

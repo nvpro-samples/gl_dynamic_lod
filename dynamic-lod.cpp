@@ -280,8 +280,13 @@ namespace dynlod
       newBuffer(buffers.sphere_vbo);
       glNamedBufferDataEXT(buffers.sphere_vbo, batched.getVerticesSize(), &batched.m_vertices[0], GL_STATIC_DRAW);
 
+#if USE_COMPACT_PARTICLE
+      glVertexAttribFormat(VERTEX_POS,  3,GL_FLOAT,GL_FALSE,0);
+      glVertexAttribFormat(VERTEX_COLOR,4,GL_UNSIGNED_BYTE,GL_TRUE,offsetof(Particle,posColor.w));
+#else
       glVertexAttribFormat(VERTEX_POS,  4,GL_FLOAT,GL_FALSE,0);
       glVertexAttribFormat(VERTEX_COLOR,4,GL_FLOAT,GL_FALSE,offsetof(Particle,color));
+#endif
       glVertexAttribBinding(VERTEX_POS,   0);
       glVertexAttribBinding(VERTEX_COLOR, 0);
     }
@@ -306,6 +311,7 @@ namespace dynlod
       }
 
       float scale = 128.0f/float(cube);
+      sceneUbo.particleSize = scale * 0.375f;
 
       srand(47345356);
 
@@ -321,8 +327,22 @@ namespace dynlod
         pos *= vec3(1,4,1);
         float size = (1.0f + frand()*1.0f) * 0.25f;
 
+        vec4 color = vec4(frand(),frand(),frand(),1.0f);
+#if USE_COMPACT_PARTICLE
+        union {
+          GLubyte color[4];
+          float   rawFloat;
+        } packed;
+        packed.color[0] = GLubyte(color.x * 255.0);
+        packed.color[1] = GLubyte(color.y * 255.0);
+        packed.color[2] = GLubyte(color.z * 255.0);
+        packed.color[3] = GLubyte(color.w * 255.0);
+
+        particles[i].posColor = vec4(pos * scale, packed.rawFloat);
+#else
         particles[i].posSize  = vec4(pos,size) * scale;
-        particles[i].color    = vec4(frand(),frand(),frand(),1.0f);
+        particles[i].color    = color;
+#endif
         particleindices[i]    = i;
       }
 
@@ -336,7 +356,7 @@ namespace dynlod
       glTextureBufferEXT(textures.particles,GL_TEXTURE_BUFFER,GL_RGBA32F, buffers.particles);
 
       GLint maxtexels = 1;
-      GLint texels    = tweak.particleCount * 2;
+      GLint texels    = tweak.particleCount * (sizeof(Particle)/sizeof(vec4));
       glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE_ARB, &maxtexels );
       if ( texels > maxtexels ){
         printf("\nWARNING: buffer size too big for texturebuffer: %d max %d\n", texels, maxtexels);
@@ -360,7 +380,7 @@ namespace dynlod
     else{
       itemSize    = sizeof(Particle);
       itemFormat  = GL_RGBA32F;
-      itemTexels  = 2;
+      itemTexels  = sizeof(Particle)/sizeof(vec4);
     }
     //size_t size   = snapsize(itemSize * tweak.particleCount, 256);
     size_t size  = snapsize(itemSize * (tweak.particleCount / tweak.jobCount), 256);
@@ -540,7 +560,7 @@ namespace dynlod
         // the following drawcalls all source the amount of works from drawindirect buffers
         // generated above
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, buffers.lodcmds);
-
+        //glEnable(GL_RASTERIZER_DISCARD);
         {
           NV_PROFILE_SECTION("Tess");
 
@@ -655,6 +675,7 @@ namespace dynlod
         }
 
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+        //glDisable(GL_RASTERIZER_DISCARD);
       }
 
       offset += cnt;

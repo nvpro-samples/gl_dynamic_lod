@@ -20,8 +20,12 @@ out Data {
 } OUT[];
 
 patch out PerPatch {
+#if USE_COMPACT_PARTICLE
+  vec4  posColor;
+#else
   vec4  posSize;
   vec4  color;
+#endif
 }OUTpatch;
 
 void main()
@@ -32,15 +36,23 @@ void main()
   particle = texelFetch(texParticleIndices, particle).r ;
 #endif
   
+#if USE_COMPACT_PARTICLE
+  vec4    inPosColor = texelFetch(texParticles, particle);
+#else
   vec4    inPosSize = texelFetch(texParticles, particle*2 + 0);
   vec4    inColor   = texelFetch(texParticles, particle*2 + 1);
+#endif
 
   OUT[gl_InvocationID].pos = IN[gl_InvocationID].offsetPos;
   
   if (gl_InvocationID == 0){
+#if USE_COMPACT_PARTICLE
+    OUTpatch.posColor = inPosColor;
+    vec4 inPosSize = vec4(inPosColor.xyz, scene.particleSize);
+#else
     OUTpatch.posSize = inPosSize;
     OUTpatch.color   = inColor;
-    
+#endif
     vec4 hPos = scene.viewProjMatrix * vec4(inPosSize.xyz,1);
     vec2 pixelsize = 2.0 * inPosSize.w * scene.viewpixelsize / hPos.w;
     

@@ -1,7 +1,6 @@
 
 #define VERTEX_POS      0
 #define VERTEX_COLOR    1
-#define VERTEX_ATTRIBS  2
 
 #define UBO_SCENE     0
 #define UBO_CMDS      1
@@ -25,7 +24,9 @@
 #define PARTICLE_BASICPRIMS     20
 #define PARTICLE_BASICINDICES   (PARTICLE_BASICPRIMS*3)
 
-
+// setting this to 1 will cause all particles to have the same "size"
+// and pack color, so that the overall size of the particle is halved 
+#define USE_COMPACT_PARTICLE  0
 
 
 #ifdef __cplusplus
@@ -70,8 +71,12 @@ struct DrawIndirects {
 };
 
 struct Particle {
+#if USE_COMPACT_PARTICLE
+  vec4  posColor;
+#else
   vec4  posSize;
   vec4  color;
+#endif
 };
 
 struct SceneData {
@@ -87,7 +92,7 @@ struct SceneData {
   float farPixels;
   float nearPixels;
   float tessPixels;
-  float _pad;
+  float particleSize;
 };
 
 #ifdef __cplusplus

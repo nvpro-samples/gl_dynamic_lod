@@ -13,10 +13,16 @@ layout(local_size_x=512) in;
 int IDX = int(gl_GlobalInvocationID.x) + idxOffset;
 
 layout(location=UNI_CONTENT_IDX_MAX)  uniform int idxMax;
-layout(binding=TEX_PARTICLES) uniform samplerBuffer texVertices;
+layout(binding=TEX_PARTICLES) uniform samplerBuffer texParticles;
 
-vec4 inPosSize = texelFetch(texVertices, (IDX)*VERTEX_ATTRIBS + VERTEX_POS);
-vec4 inColor   = texelFetch(texVertices, (IDX)*VERTEX_ATTRIBS + VERTEX_COLOR);
+#if USE_COMPACT_PARTICLE
+  vec4 inPosColor = texelFetch(texParticles, IDX);
+  vec4 inPosSize  = vec4(inPosColor.xyz, scene.particleSize);
+  vec4 inColor    = unpackUnorm4x8(floatBitsToUint(inPosColor.w));
+#else
+  vec4 inPosSize  = texelFetch(texParticles, IDX*2 + 0);
+  vec4 inColor    = texelFetch(texParticles, IDX*2 + 1);
+#endif
 
 #else
 
@@ -24,6 +30,10 @@ int IDX = gl_VertexID + idxOffset;
 
 in layout(location=VERTEX_POS)    vec4 inPosSize;
 in layout(location=VERTEX_COLOR)  vec4 inColor;
+
+#if USE_COMPACT_PARTICLE
+vec4 inPosColor = vec4(inPosSize.xyz, uintBitsToFloat(packUnorm4x8(inColor)));
+#endif
 
 #endif
 
@@ -69,7 +79,11 @@ void main()
 #endif
 
   vec3  pos  = inPosSize.xyz;
+#if USE_COMPACT_PARTICLE
+  float size = scene.particleSize;
+#else
   float size = inPosSize.w;
+#endif
   
   for (int i = 0; i < 6; i++){
     if (dot(scene.frustum[i],vec4(pos,1)) < -size){
@@ -78,7 +92,7 @@ void main()
   }
   
   vec4 hPos = scene.viewProjMatrix * vec4(inPosSize.xyz,1);
-  vec2 pixelsize = 2.0 * inPosSize.w * scene.viewpixelsize / hPos.w;
+  vec2 pixelsize = 2.0 * size * scene.viewpixelsize / hPos.w;
   
   float coverage = dot(pixelsize,vec2(0.5));
   
@@ -98,18 +112,30 @@ void main()
 #else
   if (coverage > scene.nearPixels) {
     uint slot = atomicCounterIncrement(counterNear);
+#if USE_COMPACT_PARTICLE
+    particlesNear[slot].posColor = inPosColor;
+#else
     particlesNear[slot].posSize = inPosSize;
     particlesNear[slot].color   = inColor;
+#endif
   }
   else if (coverage < scene.farPixels) {
     uint slot = atomicCounterIncrement(counterFar);
+#if USE_COMPACT_PARTICLE
+    particlesFar[slot].posColor = inPosColor;
+#else
     particlesFar[slot].posSize = inPosSize;
     particlesFar[slot].color   = inColor;
+#endif
   }
   else {
     uint slot = atomicCounterIncrement(counterMed);
+#if USE_COMPACT_PARTICLE
+    particlesMed[slot].posColor = inPosColor;
+#else
     particlesMed[slot].posSize = inPosSize;
     particlesMed[slot].color   = inColor;
+#endif
   }
 #endif
 }

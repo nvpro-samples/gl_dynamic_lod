@@ -29,9 +29,14 @@ void main()
   particle = texelFetch(texParticleIndices, particle).r;
 #endif
   
+#if USE_COMPACT_PARTICLE
+  vec4    inPosColor = texelFetch(texParticles, particle);
+  vec4    inPosSize  = vec4(inPosColor.xyz, scene.particleSize);
+  vec4    inColor    = unpackUnorm4x8(floatBitsToUint(inPosColor.w));
+#else
   vec4    inPosSize = texelFetch(texParticles, particle*2 + 0);
   vec4    inColor   = texelFetch(texParticles, particle*2 + 1);
-
+#endif
   vec3    pos = offsetPos * inPosSize.w + inPosSize.xyz;
 
   gl_Position = scene.viewProjMatrix * vec4(pos,1);
