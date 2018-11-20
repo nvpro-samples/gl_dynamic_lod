@@ -97,7 +97,9 @@ As well as in helper functions
 In common.h you can set ```USE_COMPACT_PARTICLE``` to 1 to reduce the size of the particles to a single vec4 by giving all particles the same world size. This mode allows rendering around 130 million particles on NVIDIA hardware, twice as much as the default 0 setting.
 
 #### Building
-Ideally clone this and other interesting [nvpro-samples](https://github.com/nvpro-samples) repositories into a common subdirectory. You will always need [shared_sources](https://github.com/nvpro-samples/shared_sources) and on Windows [shared_external](https://github.com/nvpro-samples/shared_external). The shared directories are searched either as subdirectory of the sample or one directory up. It is recommended to use the [build_all](https://github.com/nvpro-samples/build_all) cmake as entry point, it will also give you options to enable/disable individual samples when creating the solutions.
+Ideally clone this and other interesting [nvpro-samples](https://github.com/nvpro-samples) repositories into a common subdirectory. You will always need [shared_sources](https://github.com/nvpro-samples/shared_sources) and on Windows [shared_external](https://github.com/nvpro-samples/shared_external). The shared directories are searched either as subdirectory of the sample or one directory up.
+
+If you are interested in multiple samples, you can use [build_all](https://github.com/nvpro-samples/build_all) CMAKE as entry point, it will also give you options to enable/disable individual samples when creating the solutions.
 
 #### Related Samples
 [gl_occlusion_culling](https://github.com/nvpro-samples/gl_occlusion_culling) makes use of similar OpenGL functionality to perform more accurate visibility culling.
