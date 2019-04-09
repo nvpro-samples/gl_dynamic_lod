@@ -27,27 +27,27 @@
 #define DEBUG_FILTER     1
 
 
-#include <nv_helpers_gl/extensions_gl.hpp>
+#include <nvgl/extensions_gl.hpp>
 
 #include <imgui/imgui_helper.h>
 #include <imgui/imgui_impl_gl.h>
 
-#include <nv_math/nv_math_glsltypes.h>
+#include <nvmath/nvmath_glsltypes.h>
 
-#include <nv_helpers/geometry.hpp>
-#include <nv_helpers/misc.hpp>
-#include <nv_helpers/cameracontrol.hpp>
+#include <nvh/geometry.hpp>
+#include <nvh/misc.hpp>
+#include <nvh/cameracontrol.hpp>
 
-#include <nv_helpers_gl/appwindowprofiler_gl.hpp>
-#include <nv_helpers_gl/error_gl.hpp>
-#include <nv_helpers_gl/programmanager_gl.hpp>
-#include <nv_helpers_gl/base_gl.hpp>
-#include <nv_helpers/tnulled.hpp>
+#include <nvgl/appwindowprofiler_gl.hpp>
+#include <nvgl/error_gl.hpp>
+#include <nvgl/programmanager_gl.hpp>
+#include <nvgl/base_gl.hpp>
+#include <nvh/tnulled.hpp>
 
 
-using namespace nv_helpers;
-using namespace nv_helpers_gl;
-using namespace nv_math;
+using namespace nvh;
+using namespace nvgl;
+using namespace nvmath;
 #include "common.h"
 
 namespace dynlod
@@ -57,7 +57,7 @@ namespace dynlod
   int const SAMPLE_MAJOR_VERSION(4);
   int const SAMPLE_MINOR_VERSION(5);
 
-  class Sample : public nv_helpers_gl::AppWindowProfilerGL
+  class Sample : public nvgl::AppWindowProfilerGL
   {
 
     struct {
@@ -72,7 +72,7 @@ namespace dynlod
     } programs;
 
     struct {
-      nv_helpers::TNulled<GLuint>  
+      nvh::TNulled<GLuint>  
         sphere_vbo,
         sphere_ibo,
         scene_ubo,
@@ -85,7 +85,7 @@ namespace dynlod
     } buffers;
 
     struct {
-      nv_helpers::TNulled<GLuint>
+      nvh::TNulled<GLuint>
         particles,
         lodparticles;
     } textures;
@@ -130,7 +130,7 @@ namespace dynlod
     void end() {
       ImGui::ShutdownGL();
     }
-    // return true to prevent m_window updates
+    // return true to prevent m_windowState updates
     bool mouse_pos(int x, int y) {
       return ImGuiH::mouse_pos(x, y);
     }
@@ -145,6 +145,18 @@ namespace dynlod
     }
     bool key_button(int button, int action, int mods) {
       return ImGuiH::key_button(button, action, mods);
+    }
+
+  public:
+    Sample()
+    {
+      m_parameterList.add("jobcount", &m_tweak.jobCount);
+      m_parameterList.add("particlecount", &m_tweak.particleCount);
+      m_parameterList.add("uselod", &m_tweak.uselod);
+      m_parameterList.add("usecompute", &m_tweak.usecompute);
+      m_parameterList.add("useindices", &m_tweak.useindices);
+      m_parameterList.add("nolodtess", &m_tweak.nolodtess);
+      m_parameterList.add("fov", &m_tweak.fov);
     }
   };
 
@@ -170,7 +182,7 @@ namespace dynlod
     m_progManager.m_filetype = ShaderFileManager::FILETYPE_GLSL;
     m_progManager.addDirectory( std::string("GLSL_" PROJECT_NAME));
     m_progManager.addDirectory( sysExePath() + std::string(PROJECT_RELDIRECTORY));
-    m_progManager.addDirectory( std::string(PROJECT_ABSDIRECTORY));
+    //m_progManager.addDirectory( std::string(PROJECT_ABSDIRECTORY));
 
     m_progManager.registerInclude("common.h", "common.h");
 
@@ -406,7 +418,7 @@ namespace dynlod
 
   bool Sample::begin()
   {
-    ImGuiH::Init(m_window.m_viewsize[0], m_window.m_viewsize[1], this);
+    ImGuiH::Init(m_windowState.m_viewSize[0], m_windowState.m_viewSize[1], this);
     ImGui::InitGL();
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -430,15 +442,15 @@ namespace dynlod
 
     m_control.m_sceneOrbit = vec3(0.0f);
     m_control.m_sceneDimension = 256.0f;
-    m_control.m_viewMatrix = nv_math::look_at(m_control.m_sceneOrbit + vec3(0.9,0.9,1)*m_control.m_sceneDimension*0.3f, m_control.m_sceneOrbit, vec3(0,1,0));
+    m_control.m_viewMatrix = nvmath::look_at(m_control.m_sceneOrbit + vec3(0.9,0.9,1)*m_control.m_sceneDimension*0.3f, m_control.m_sceneOrbit, vec3(0,1,0));
 
     return validated;
   }
 
   void Sample::processUI(double time)
   {
-    int width = m_window.m_viewsize[0];
-    int height = m_window.m_viewsize[1];
+    int width = m_windowState.m_viewSize[0];
+    int height = m_windowState.m_viewSize[1];
 
     // Update imgui configuration
     auto &imgui_io = ImGui::GetIO();
@@ -469,7 +481,7 @@ namespace dynlod
 
   void Sample::drawLod()
   {
-    NV_PROFILE_SPLIT();
+    NV_PROFILE_GL_SPLIT();
 
     // due to SSBO alignment (256 bytes) we need to calculate some counts
     // dynamically
@@ -497,17 +509,17 @@ namespace dynlod
 
       if (!m_tweak.pause || jobs > 1)
       {
-        NV_PROFILE_SECTION("Lod");
+        NV_PROFILE_GL_SECTION("Lod");
         glEnable(GL_RASTERIZER_DISCARD);
 
         {
-          NV_PROFILE_SECTION("Cont");
+          NV_PROFILE_GL_SECTION("Cont");
 
           glUseProgram(m_progManager.get(m_tweak.usecompute ? programs.lodcontent_comp : programs.lodcontent));
 
           if (m_tweak.usecompute){
             glUniform1i(UNI_CONTENT_IDX_MAX, offset + cnt);
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES, GL_TEXTURE_BUFFER, textures.particles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES, GL_TEXTURE_BUFFER, textures.particles);
           }
           else{
             glEnableVertexAttribArray(VERTEX_POS);
@@ -542,7 +554,7 @@ namespace dynlod
         }
 
         {
-          NV_PROFILE_SECTION("Cmds");
+          NV_PROFILE_GL_SECTION("Cmds");
 
           glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
@@ -563,13 +575,13 @@ namespace dynlod
       }
 
       {
-        NV_PROFILE_SECTION("Draw");
+        NV_PROFILE_GL_SECTION("Draw");
         // the following drawcalls all source the amount of works from drawindirect buffers
         // generated above
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, buffers.lodcmds);
         //glEnable(GL_RASTERIZER_DISCARD);
         {
-          NV_PROFILE_SECTION("Tess");
+          NV_PROFILE_GL_SECTION("Tess");
 
           glUseProgram(m_progManager.get(programs.draw_sphere_tess));
           glPatchParameteri(GL_PATCH_VERTICES,3);
@@ -579,12 +591,12 @@ namespace dynlod
           glEnableVertexAttribArray(VERTEX_POS);
 
           if (m_tweak.useindices){
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.particles);
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, textures.lodparticles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.particles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, textures.lodparticles);
           }
           else{
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.lodparticles);
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, 0);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.lodparticles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, 0);
           }
 
           glTextureBuffer(textures.lodparticles, itemFormat, buffers.lodparticles2);
@@ -607,7 +619,7 @@ namespace dynlod
         }
 
         {
-          NV_PROFILE_SECTION("Mesh");
+          NV_PROFILE_GL_SECTION("Mesh");
 
           glUseProgram(m_progManager.get(programs.draw_sphere));
 
@@ -616,12 +628,12 @@ namespace dynlod
           glEnableVertexAttribArray(VERTEX_POS);
 
           if (m_tweak.useindices){
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.particles);
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, textures.lodparticles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.particles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, textures.lodparticles);
           }
           else{
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.lodparticles);
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, 0);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.lodparticles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, 0);
           }
 
           glTextureBuffer(textures.lodparticles, itemFormat, buffers.lodparticles1);
@@ -644,15 +656,15 @@ namespace dynlod
         }
 
         {
-          NV_PROFILE_SECTION("Pnts");
+          NV_PROFILE_GL_SECTION("Pnts");
 
           glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 
           glUseProgram(m_progManager.get(programs.draw_sphere_point));
 
           if (m_tweak.useindices){
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.particles);
-            nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, textures.lodparticles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES,        GL_TEXTURE_BUFFER, textures.particles);
+            nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES,  GL_TEXTURE_BUFFER, textures.lodparticles);
           }
           else{
             glEnableVertexAttribArray(VERTEX_POS);
@@ -685,16 +697,18 @@ namespace dynlod
       offset += cnt;
     }
 
-    NV_PROFILE_SPLIT();
+    NV_PROFILE_GL_SPLIT();
   }
 
   void Sample::think(double time)
   {
+    NV_PROFILE_GL_SECTION("Frame");
+
     processUI(time);
 
-    m_control.processActions(m_window.m_viewsize,
-      nv_math::vec2f(m_window.m_mouseCurrent[0],m_window.m_mouseCurrent[1]),
-      m_window.m_mouseButtonFlags, m_window.m_wheel);
+    m_control.processActions(m_windowState.m_viewSize,
+      nvmath::vec2f(m_windowState.m_mouseCurrent[0],m_windowState.m_mouseCurrent[1]),
+      m_windowState.m_mouseButtonFlags, m_windowState.m_mouseWheel);
 
     m_tweak.jobCount = std::min(m_tweak.particleCount,m_tweak.jobCount);
 
@@ -715,7 +729,7 @@ namespace dynlod
       initLodBuffers();
     }
 
-    if (m_window.onPress(KEY_R)){
+    if (m_windowState.onPress(KEY_R)){
       m_progManager.reloadPrograms();
       glGetProgramiv(m_progManager.get(programs.lodcontent_comp),GL_COMPUTE_WORK_GROUP_SIZE,(GLint*)m_workGroupSize);
     }
@@ -724,8 +738,8 @@ namespace dynlod
       return;
     }
 
-    int width   = m_window.m_viewsize[0];
-    int height  = m_window.m_viewsize[1];
+    int width   = m_windowState.m_viewSize[0];
+    int height  = m_windowState.m_viewSize[1];
 
     glViewport(0, 0, width, height);
 
@@ -740,17 +754,17 @@ namespace dynlod
 
       float farplane = 1000.0f;
 
-      nv_math::mat4 projection = nv_math::perspective( (m_tweak.fov), float(width)/float(height), 0.1f, farplane);
-      nv_math::mat4 view = m_control.m_viewMatrix;
+      nvmath::mat4 projection = nvmath::perspective( (m_tweak.fov), float(width)/float(height), 0.1f, farplane);
+      nvmath::mat4 view = m_control.m_viewMatrix;
 
-      vec4  hPos = projection * nv_math::vec4(1.0f,1.0f,-1000.0f,1.0f);
+      vec4  hPos = projection * nvmath::vec4(1.0f,1.0f,-1000.0f,1.0f);
       vec2  hCoord = vec2(hPos.x/hPos.w, hPos.y/hPos.w);
-      vec2  dim  = nv_math::nv_abs(hCoord);
+      vec2  dim  = nvmath::nv_abs(hCoord);
       m_sceneUbo.viewpixelsize = dim * vec2(float(width),float(height)) * farplane * 0.5f;
 
       m_sceneUbo.viewProjMatrix = projection * view;
       m_sceneUbo.viewMatrix = view;
-      m_sceneUbo.viewMatrixIT = nv_math::transpose(nv_math::invert(view));
+      m_sceneUbo.viewMatrixIT = nvmath::transpose(nvmath::invert(view));
 
       Frustum::init((float (*)[4])&m_sceneUbo.frustum[0].x,m_sceneUbo.viewProjMatrix.mat_array);
 
@@ -763,7 +777,7 @@ namespace dynlod
       drawLod();
     }
     else{
-      NV_PROFILE_SECTION("NoLod");
+      NV_PROFILE_GL_SECTION("NoLod");
 
       bool useTess = m_tweak.nolodtess;
 
@@ -788,16 +802,16 @@ namespace dynlod
         itemSize    = sizeof(uint);
         itemBuffer  = buffers.particleindices;
 
-        nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES, GL_TEXTURE_BUFFER,       textures.particles);
-        nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES, GL_TEXTURE_BUFFER, textures.lodparticles);
+        nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES, GL_TEXTURE_BUFFER,       textures.particles);
+        nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES, GL_TEXTURE_BUFFER, textures.lodparticles);
       }
       else{
         itemFormat  = GL_RGBA32F;
         itemSize    = sizeof(Particle);
         itemBuffer  = buffers.particles;
 
-        nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES, GL_TEXTURE_BUFFER,       textures.lodparticles);
-        nv_helpers_gl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES, GL_TEXTURE_BUFFER, 0);
+        nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLES, GL_TEXTURE_BUFFER,       textures.lodparticles);
+        nvgl::bindMultiTexture(GL_TEXTURE0 + TEX_PARTICLEINDICES, GL_TEXTURE_BUFFER, 0);
       }
 
       glTextureBuffer(textures.lodparticles, itemFormat,  itemBuffer);
@@ -820,7 +834,7 @@ namespace dynlod
     glBindBufferBase( GL_UNIFORM_BUFFER, UBO_SCENE, 0);
 
     {
-      NV_PROFILE_SECTION("GUI");
+      NV_PROFILE_GL_SECTION("GUI");
       ImGui::Render();
       ImGui::RenderDrawDataGL(ImGui::GetDrawData());
     }
@@ -839,19 +853,15 @@ namespace dynlod
 
 using namespace dynlod;
 
-int sample_main(int argc, const char** argv)
+int main(int argc, const char** argv)
 {
-  SETLOGFILENAME();
+  NVPWindow::System system(argv[0], PROJECT_NAME);
+
   Sample sample;
   return sample.run(
     PROJECT_NAME,
     argc, argv,
-    SAMPLE_SIZE_WIDTH, SAMPLE_SIZE_HEIGHT,
-    SAMPLE_MAJOR_VERSION, SAMPLE_MINOR_VERSION);
+    SAMPLE_SIZE_WIDTH, SAMPLE_SIZE_HEIGHT);
 }
 
-void sample_print(int level, const char * fmt)
-{
-
-}
 
