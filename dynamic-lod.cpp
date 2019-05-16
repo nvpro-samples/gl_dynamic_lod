@@ -470,11 +470,13 @@ namespace dynlod
       ImGui::Checkbox("pause lod", &m_tweak.pause);
       ImGuiH::InputIntClamped("num partices", &m_tweak.particleCount, 1, 1024 * 1024 * 1024, 1024 * 512, 1024 * 1024);
       ImGui::Separator();
+      ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.585f);
       ImGui::DragFloat("lod near pixelsize", &m_sceneUbo.nearPixels, 0.1f, 1, 1000);
       ImGui::DragFloat("lod far pixelsize", &m_sceneUbo.farPixels, 0.1f, 1, 1000);
       ImGui::DragFloat("tess pixelsize", &m_sceneUbo.tessPixels, 0.1f, 1, 1000);
       ImGui::Separator();
       ImGui::SliderFloat("fov", &m_tweak.fov, 1, 90.0f);
+      ImGui::PopItemWidth();
     }
     ImGui::End();
   }
