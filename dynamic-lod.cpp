@@ -42,12 +42,7 @@
 #include <nvgl/error_gl.hpp>
 #include <nvgl/programmanager_gl.hpp>
 #include <nvgl/base_gl.hpp>
-#include <nvh/tnulled.hpp>
 
-
-using namespace nvh;
-using namespace nvgl;
-using namespace nvmath;
 #include "common.h"
 
 namespace dynlod
@@ -57,11 +52,75 @@ namespace dynlod
   int const SAMPLE_MAJOR_VERSION(4);
   int const SAMPLE_MINOR_VERSION(5);
 
+  class Frustum 
+  {
+  public:
+    enum {
+      PLANE_NEAR,
+      PLANE_FAR,
+      PLANE_LEFT,
+      PLANE_RIGHT,
+      PLANE_TOP,
+      PLANE_BOTTOM,
+      NUM_PLANES
+    };
+
+    static inline void init(float planes[Frustum::NUM_PLANES][4], const float viewProj[16])
+    {
+      const float *clip = viewProj;
+
+      planes[PLANE_RIGHT][0] = clip[3] - clip[0];
+      planes[PLANE_RIGHT][1] = clip[7] - clip[4];
+      planes[PLANE_RIGHT][2] = clip[11] - clip[8];
+      planes[PLANE_RIGHT][3] = clip[15] - clip[12];
+
+      planes[PLANE_LEFT][0] = clip[3] + clip[0];
+      planes[PLANE_LEFT][1] = clip[7] + clip[4];
+      planes[PLANE_LEFT][2] = clip[11] + clip[8];
+      planes[PLANE_LEFT][3] = clip[15] + clip[12];
+
+      planes[PLANE_BOTTOM][0] = clip[3] + clip[1];
+      planes[PLANE_BOTTOM][1] = clip[7] + clip[5];
+      planes[PLANE_BOTTOM][2] = clip[11] + clip[9];
+      planes[PLANE_BOTTOM][3] = clip[15] + clip[13];
+
+      planes[PLANE_TOP][0] = clip[3] - clip[1];
+      planes[PLANE_TOP][1] = clip[7] - clip[5];
+      planes[PLANE_TOP][2] = clip[11] - clip[9];
+      planes[PLANE_TOP][3] = clip[15] - clip[13];
+
+      planes[PLANE_FAR][0] = clip[3] - clip[2];
+      planes[PLANE_FAR][1] = clip[7] - clip[6];
+      planes[PLANE_FAR][2] = clip[11] - clip[10];
+      planes[PLANE_FAR][3] = clip[15] - clip[14];
+
+      planes[PLANE_NEAR][0] = clip[3] + clip[2];
+      planes[PLANE_NEAR][1] = clip[7] + clip[6];
+      planes[PLANE_NEAR][2] = clip[11] + clip[10];
+      planes[PLANE_NEAR][3] = clip[15] + clip[14];
+
+      for (int i = 0; i < NUM_PLANES; i++){
+        float length    = sqrtf(planes[i][0]*planes[i][0] + planes[i][1]*planes[i][1] + planes[i][2]*planes[i][2]);
+        float magnitude = 1.0f/length;
+
+        for (int n = 0; n < 4; n++){
+          planes[i][n] *= magnitude;
+        }
+      }
+    }
+
+    Frustum() {}
+    Frustum(const float viewProj[16]){
+      init(m_planes,viewProj);
+    }
+
+    float  m_planes[NUM_PLANES][4];
+  };
+
   class Sample : public nvgl::AppWindowProfilerGL
   {
-
     struct {
-      ProgramManager::ProgramID
+      nvgl::ProgramID
         draw_sphere_point,
         draw_sphere,
         draw_sphere_tess,
@@ -72,22 +131,20 @@ namespace dynlod
     } programs;
 
     struct {
-      nvh::TNulled<GLuint>  
-        sphere_vbo,
-        sphere_ibo,
-        scene_ubo,
-        particles,
-        particleindices,
-        lodparticles0,
-        lodparticles1,
-        lodparticles2,
-        lodcmds;
+      GLuint  sphere_vbo = 0;
+      GLuint  sphere_ibo = 0;
+      GLuint  scene_ubo = 0;
+      GLuint  particles = 0;
+      GLuint  particleindices = 0;
+      GLuint  lodparticles0 = 0;
+      GLuint  lodparticles1 = 0;
+      GLuint  lodparticles2 = 0;
+      GLuint  lodcmds;
     } buffers;
 
     struct {
-      nvh::TNulled<GLuint>
-        particles,
-        lodparticles;
+      GLuint  particles = 0;
+      GLuint  lodparticles = 0;
     } textures;
 
     struct Tweak {
@@ -102,7 +159,7 @@ namespace dynlod
       bool      usecompute = true;
     };
 
-    ProgramManager      m_progManager;
+    nvgl::ProgramManager m_progManager;
 
     ImGuiH::Registry    m_ui;
     double              m_uiTime;
@@ -113,7 +170,7 @@ namespace dynlod
     GLuint              m_workGroupSize[3];
     SceneData           m_sceneUbo;
 
-    CameraControl       m_control;
+    nvh::CameraControl  m_control;
 
     bool  begin();
     void  processUI(double time);
@@ -173,45 +230,45 @@ namespace dynlod
   void Sample::updateProgramDefines()
   {
     m_progManager.m_prepend = std::string("");
-    m_progManager.m_prepend += ProgramManager::format("#define USE_INDICES %d\n", m_tweak.useindices ? 1 : 0);
+    m_progManager.m_prepend += nvgl::ProgramManager::format("#define USE_INDICES %d\n", m_tweak.useindices ? 1 : 0);
   }
 
   bool Sample::initProgram()
   {
     bool validated(true);
-    m_progManager.m_filetype = ShaderFileManager::FILETYPE_GLSL;
+    m_progManager.m_filetype = nvh::ShaderFileManager::FILETYPE_GLSL;
     m_progManager.addDirectory( std::string("GLSL_" PROJECT_NAME));
-    m_progManager.addDirectory( sysExePath() + std::string(PROJECT_RELDIRECTORY));
+    m_progManager.addDirectory( exePath() + std::string(PROJECT_RELDIRECTORY));
     //m_progManager.addDirectory( std::string(PROJECT_ABSDIRECTORY));
 
-    m_progManager.registerInclude("common.h", "common.h");
+    m_progManager.registerInclude("common.h");
 
     updateProgramDefines();
 
     programs.draw_sphere_point = m_progManager.createProgram(
-      ProgramManager::Definition(GL_VERTEX_SHADER,   "spherepoint.vert.glsl"),
-      ProgramManager::Definition(GL_FRAGMENT_SHADER, "spherepoint.frag.glsl"));
+      nvgl::ProgramManager::Definition(GL_VERTEX_SHADER,   "spherepoint.vert.glsl"),
+      nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "spherepoint.frag.glsl"));
     programs.draw_sphere = m_progManager.createProgram(
-      ProgramManager::Definition(GL_VERTEX_SHADER,   "sphere.vert.glsl"),
-      ProgramManager::Definition(GL_FRAGMENT_SHADER, "sphere.frag.glsl"));
+      nvgl::ProgramManager::Definition(GL_VERTEX_SHADER,   "sphere.vert.glsl"),
+      nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "sphere.frag.glsl"));
 
     programs.draw_sphere_tess = m_progManager.createProgram(
-      ProgramManager::Definition(GL_VERTEX_SHADER,          "spheretess.vert.glsl"),
-      ProgramManager::Definition(GL_TESS_CONTROL_SHADER,    "spheretess.tctrl.glsl"),
-      ProgramManager::Definition(GL_TESS_EVALUATION_SHADER, "spheretess.teval.glsl"),
-      ProgramManager::Definition(GL_FRAGMENT_SHADER,        "sphere.frag.glsl"));
+      nvgl::ProgramManager::Definition(GL_VERTEX_SHADER,          "spheretess.vert.glsl"),
+      nvgl::ProgramManager::Definition(GL_TESS_CONTROL_SHADER,    "spheretess.tctrl.glsl"),
+      nvgl::ProgramManager::Definition(GL_TESS_EVALUATION_SHADER, "spheretess.teval.glsl"),
+      nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER,        "sphere.frag.glsl"));
 
     programs.lodcontent = m_progManager.createProgram(
-      ProgramManager::Definition(GL_VERTEX_SHADER,  "lodcontent.vert.glsl"));
+      nvgl::ProgramManager::Definition(GL_VERTEX_SHADER,  "lodcontent.vert.glsl"));
 
     programs.lodcmds = m_progManager.createProgram(
-      ProgramManager::Definition(GL_VERTEX_SHADER,  "lodcmds.vert.glsl"));
+      nvgl::ProgramManager::Definition(GL_VERTEX_SHADER,  "lodcmds.vert.glsl"));
 
     programs.lodcontent_comp = m_progManager.createProgram(
-      ProgramManager::Definition(GL_COMPUTE_SHADER,  "#define USE_COMPUTE 1\n","lodcontent.vert.glsl"));
+      nvgl::ProgramManager::Definition(GL_COMPUTE_SHADER,  "#define USE_COMPUTE 1\n","lodcontent.vert.glsl"));
 
     programs.lodcmds_comp = m_progManager.createProgram(
-      ProgramManager::Definition(GL_COMPUTE_SHADER,  "#define USE_COMPUTE 1\n","lodcmds.vert.glsl"));
+      nvgl::ProgramManager::Definition(GL_COMPUTE_SHADER,  "#define USE_COMPUTE 1\n","lodcmds.vert.glsl"));
 
     validated = m_progManager.areProgramsValid();
 
@@ -268,7 +325,7 @@ namespace dynlod
       assert(IndexCount/3  == PARTICLE_BASICPRIMS);
       assert(VertexCount/4 == PARTICLE_BASICVERTICES);
 
-      geometry::Mesh<vec4> icosahedron;
+      nvh::geometry::Mesh<vec4> icosahedron;
       icosahedron.m_vertices.resize( VertexCount/4 );
       memcpy(&icosahedron.m_vertices[0], Verts, sizeof(Verts));
       icosahedron.m_indicesTriangles.resize( IndexCount/3 );
@@ -276,15 +333,15 @@ namespace dynlod
 
       icosahedron.flipWinding();
 
-      geometry::Mesh<vec4> batched;
+      nvh::geometry::Mesh<vec4> batched;
       for (int i = 0; i < PARTICLE_BATCHSIZE; i++){
         batched.append(icosahedron);
       }
 
-      newBuffer(buffers.sphere_ibo);
+      nvgl::newBuffer(buffers.sphere_ibo);
       glNamedBufferData(buffers.sphere_ibo, batched.getTriangleIndicesSize(), &batched.m_indicesTriangles[0], GL_STATIC_DRAW);
 
-      newBuffer(buffers.sphere_vbo);
+      nvgl::newBuffer(buffers.sphere_vbo);
       glNamedBufferData(buffers.sphere_vbo, batched.getVerticesSize(), &batched.m_vertices[0], GL_STATIC_DRAW);
 
 #if USE_COMPACT_PARTICLE
@@ -300,7 +357,7 @@ namespace dynlod
 
 
     { // Scene UBO
-      newBuffer(buffers.scene_ubo);
+      nvgl::newBuffer(buffers.scene_ubo);
       glNamedBufferData(buffers.scene_ubo, sizeof(SceneData), NULL, GL_DYNAMIC_DRAW);
     }
 
@@ -328,13 +385,13 @@ namespace dynlod
         int z = (i / cube) % (cube);
         int y = i / (cube*cube);
 
-        vec3 pos = (vec3(0,frand(),0) - 0.5f) * 0.1f;
+        vec3 pos = (vec3(0,nvh::frand(),0) - 0.5f) * 0.1f;
         pos += vec3(x,y,z);
         pos -= vec3(cube,cube/4,cube) * 0.5f;
         pos *= vec3(1,4,1);
-        float size = (1.0f + frand()*1.0f) * 0.25f;
+        float size = (1.0f + nvh::frand()*1.0f) * 0.25f;
 
-        vec4 color = vec4(frand(),frand(),frand(),1.0f);
+        vec4 color = vec4(nvh::frand(),nvh::frand(),nvh::frand(),1.0f);
 #if USE_COMPACT_PARTICLE
         union {
           GLubyte color[4];
@@ -353,13 +410,13 @@ namespace dynlod
         particleindices[i]    = i;
       }
 
-      newBuffer(buffers.particles);
+      nvgl::newBuffer(buffers.particles);
       glNamedBufferData(buffers.particles, sizeof(Particle) * m_tweak.particleCount, &particles[0], GL_STATIC_DRAW);
 
-      newBuffer(buffers.particleindices);
+      nvgl::newBuffer(buffers.particleindices);
       glNamedBufferData(buffers.particleindices, sizeof(int) * m_tweak.particleCount, &particleindices[0], GL_STATIC_DRAW);
 
-      newTexture(textures.particles, GL_TEXTURE_BUFFER);
+      nvgl::newTexture(textures.particles, GL_TEXTURE_BUFFER);
       glTextureBuffer(textures.particles,GL_RGBA32F, buffers.particles);
 
       GLint maxtexels = 1;
@@ -399,17 +456,17 @@ namespace dynlod
       LOGI("\nWARNING: buffer size too big for texturebuffer: %d max %d\n", texels, maxtexels);
     }
 
-    newBuffer(buffers.lodparticles0);
+    nvgl::newBuffer(buffers.lodparticles0);
     glNamedBufferData(buffers.lodparticles0, size, NULL, GL_DYNAMIC_COPY);
-    newBuffer(buffers.lodparticles1);
+    nvgl::newBuffer(buffers.lodparticles1);
     glNamedBufferData(buffers.lodparticles1, size, NULL, GL_DYNAMIC_COPY);
-    newBuffer(buffers.lodparticles2);
+    nvgl::newBuffer(buffers.lodparticles2);
     glNamedBufferData(buffers.lodparticles2, size, NULL, GL_DYNAMIC_COPY);
     
-    newTexture(textures.lodparticles, GL_TEXTURE_BUFFER);
+    nvgl::newTexture(textures.lodparticles, GL_TEXTURE_BUFFER);
     glTextureBuffer(textures.lodparticles, itemFormat, buffers.lodparticles0);
 
-    newBuffer(buffers.lodcmds);
+    nvgl::newBuffer(buffers.lodcmds);
     glNamedBufferData(buffers.lodcmds, snapsize(sizeof(DrawIndirects),256) * m_tweak.jobCount, NULL, GL_DYNAMIC_COPY);
     glClearNamedBufferData(buffers.lodcmds,GL_RGBA32F,GL_RGBA, GL_FLOAT, NULL);
 
@@ -468,7 +525,7 @@ namespace dynlod
       ImGui::Checkbox("use indexing", &m_tweak.useindices);
       ImGui::Checkbox("use compute", &m_tweak.usecompute);
       ImGui::Checkbox("pause lod", &m_tweak.pause);
-      ImGuiH::InputIntClamped("num partices", &m_tweak.particleCount, 1, 1024 * 1024 * 1024, 1024 * 512, 1024 * 1024);
+      ImGuiH::InputIntClamped("num partices", &m_tweak.particleCount, 1, 1024 * 1024 * 1024, 1024 * 512, 1024 * 1024, ImGuiInputTextFlags_EnterReturnsTrue);
       ImGui::Separator();
       ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.585f);
       ImGui::DragFloat("lod near pixelsize", &m_sceneUbo.nearPixels, 0.1f, 1, 1000);
@@ -857,7 +914,7 @@ using namespace dynlod;
 
 int main(int argc, const char** argv)
 {
-  NVPWindow::System system(argv[0], PROJECT_NAME);
+  NVPSystem system(argv[0], PROJECT_NAME);
 
   Sample sample;
   return sample.run(

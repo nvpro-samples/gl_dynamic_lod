@@ -58,6 +58,7 @@
 #ifdef __cplusplus
 namespace dynlod
 {
+  using namespace nvmath;
 #endif
 
 struct DrawArrays {
