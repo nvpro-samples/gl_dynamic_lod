@@ -474,7 +474,7 @@ namespace dynlod
 
   bool Sample::begin()
   {
-    ImGuiH::Init(m_windowState.m_viewSize[0], m_windowState.m_viewSize[1], this);
+    ImGuiH::Init(m_windowState.m_winSize[0], m_windowState.m_winSize[1], this);
     ImGui::InitGL();
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -505,8 +505,8 @@ namespace dynlod
 
   void Sample::processUI(double time)
   {
-    int width = m_windowState.m_viewSize[0];
-    int height = m_windowState.m_viewSize[1];
+    int width = m_windowState.m_winSize[0];
+    int height = m_windowState.m_winSize[1];
 
     // Update imgui configuration
     auto &imgui_io = ImGui::GetIO();
@@ -764,7 +764,7 @@ namespace dynlod
 
     processUI(time);
 
-    m_control.processActions(m_windowState.m_viewSize,
+    m_control.processActions(m_windowState.m_winSize,
       nvmath::vec2f(m_windowState.m_mouseCurrent[0],m_windowState.m_mouseCurrent[1]),
       m_windowState.m_mouseButtonFlags, m_windowState.m_mouseWheel);
 
@@ -796,8 +796,8 @@ namespace dynlod
       return;
     }
 
-    int width   = m_windowState.m_viewSize[0];
-    int height  = m_windowState.m_viewSize[1];
+    int width   = m_windowState.m_winSize[0];
+    int height  = m_windowState.m_winSize[1];
 
     glViewport(0, 0, width, height);
 
