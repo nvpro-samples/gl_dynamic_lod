@@ -97,7 +97,7 @@ As well as in helper functions
 In common.h, you can set ```USE_COMPACT_PARTICLE``` to 1 to reduce the size of the particles to a single vec4 by giving all particles the same world size. This mode allows rendering around 130 million particles on NVIDIA hardware, twice as much as the default 0 setting.
 
 #### Building
-Ideally, clone this and other interesting [nvpro-samples](https://github.com/nvpro-samples) repositories into a common subdirectory. You will always need [shared_sources](https://github.com/nvpro-samples/shared_sources), and on Windows, you will need [shared_external](https://github.com/nvpro-samples/shared_external). The shared directories are searched either as a subdirectory of the sample or one directory up.
+Ideally, clone this and other interesting [nvpro-samples](https://github.com/nvpro-samples) repositories into a common subdirectory. You will always need [nvpro_core](https://github.com/nvpro-samples/nvpro_core). The nvpro_core is searched either as a subdirectory of the sample, or one directory up.
 
 If you are interested in multiple samples, you can use the [build_all](https://github.com/nvpro-samples/build_all) CMAKE as an entry point. It will also give you options to enable or disable individual samples when creating the solutions.
 
