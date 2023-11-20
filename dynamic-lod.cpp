@@ -27,8 +27,6 @@
 #include <imgui/backends/imgui_impl_gl.h>
 #include <imgui/imgui_helper.h>
 
-#include <nvmath/nvmath_glsltypes.h>
-
 #include <nvh/cameracontrol.hpp>
 #include <nvh/geometry.hpp>
 #include <nvh/misc.hpp>
@@ -39,6 +37,7 @@
 #include <nvgl/programmanager_gl.hpp>
 
 #include "common.h"
+#include "glm/gtc/type_ptr.hpp"
 
 namespace dynlod {
 int const SAMPLE_SIZE_WIDTH(1024);
@@ -227,9 +226,8 @@ bool Sample::initProgram()
   programs.draw_sphere_point =
       m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "spherepoint.vert.glsl"),
                                   nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "spherepoint.frag.glsl"));
-  programs.draw_sphere =
-      m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "sphere.vert.glsl"),
-                                  nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "sphere.frag.glsl"));
+  programs.draw_sphere = m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "sphere.vert.glsl"),
+                                                     nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "sphere.frag.glsl"));
 
   programs.draw_sphere_tess =
       m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "spheretess.vert.glsl"),
@@ -237,11 +235,9 @@ bool Sample::initProgram()
                                   nvgl::ProgramManager::Definition(GL_TESS_EVALUATION_SHADER, "spheretess.teval.glsl"),
                                   nvgl::ProgramManager::Definition(GL_FRAGMENT_SHADER, "sphere.frag.glsl"));
 
-  programs.lodcontent =
-      m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "lodcontent.vert.glsl"));
+  programs.lodcontent = m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "lodcontent.vert.glsl"));
 
-  programs.lodcmds =
-      m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "lodcmds.vert.glsl"));
+  programs.lodcmds = m_progManager.createProgram(nvgl::ProgramManager::Definition(GL_VERTEX_SHADER, "lodcmds.vert.glsl"));
 
   programs.lodcontent_comp = m_progManager.createProgram(
       nvgl::ProgramManager::Definition(GL_COMPUTE_SHADER, "#define USE_COMPUTE 1\n", "lodcontent.vert.glsl"));
@@ -460,8 +456,8 @@ bool Sample::begin()
 
   m_control.m_sceneOrbit     = vec3(0.0f);
   m_control.m_sceneDimension = 256.0f;
-  m_control.m_viewMatrix = nvmath::look_at(m_control.m_sceneOrbit + vec3(0.9, 0.9, 1) * m_control.m_sceneDimension * 0.3f,
-                                           m_control.m_sceneOrbit, vec3(0, 1, 0));
+  m_control.m_viewMatrix = glm::lookAt(m_control.m_sceneOrbit + vec3(0.9, 0.9, 1) * m_control.m_sceneDimension * 0.3f,
+                                       m_control.m_sceneOrbit, vec3(0, 1, 0));
 
   return validated;
 }
@@ -737,8 +733,8 @@ void Sample::think(double time)
 
   processUI(time);
 
-  m_control.processActions(m_windowState.m_winSize,
-                           nvmath::vec2f(m_windowState.m_mouseCurrent[0], m_windowState.m_mouseCurrent[1]),
+  m_control.processActions({m_windowState.m_winSize[0], m_windowState.m_winSize[1]},
+                           glm::vec2(m_windowState.m_mouseCurrent[0], m_windowState.m_mouseCurrent[1]),
                            m_windowState.m_mouseButtonFlags, m_windowState.m_mouseWheel);
 
   m_tweak.jobCount = std::min(m_tweak.particleCount, m_tweak.jobCount);
@@ -787,19 +783,19 @@ void Sample::think(double time)
 
     float farplane = 1000.0f;
 
-    nvmath::mat4 projection = nvmath::perspective((m_tweak.fov), float(width) / float(height), 0.1f, farplane);
-    nvmath::mat4 view       = m_control.m_viewMatrix;
+    glm::mat4 projection = glm::perspectiveRH_ZO((m_tweak.fov), float(width) / float(height), 0.1f, farplane);
+    glm::mat4 view       = m_control.m_viewMatrix;
 
-    vec4 hPos                = projection * nvmath::vec4(1.0f, 1.0f, -1000.0f, 1.0f);
+    vec4 hPos                = projection * glm::vec4(1.0f, 1.0f, -1000.0f, 1.0f);
     vec2 hCoord              = vec2(hPos.x / hPos.w, hPos.y / hPos.w);
-    vec2 dim                 = nvmath::nv_abs(hCoord);
+    vec2 dim                 = glm::abs(hCoord);
     m_sceneUbo.viewpixelsize = dim * vec2(float(width), float(height)) * farplane * 0.5f;
 
     m_sceneUbo.viewProjMatrix = projection * view;
     m_sceneUbo.viewMatrix     = view;
-    m_sceneUbo.viewMatrixIT   = nvmath::transpose(nvmath::invert(view));
+    m_sceneUbo.viewMatrixIT   = glm::transpose(glm::inverse(view));
 
-    Frustum::init((float(*)[4]) & m_sceneUbo.frustum[0].x, m_sceneUbo.viewProjMatrix.mat_array);
+    Frustum::init((float(*)[4]) & m_sceneUbo.frustum[0].x, glm::value_ptr(m_sceneUbo.viewProjMatrix));
 
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(SceneData), &m_sceneUbo);
   }

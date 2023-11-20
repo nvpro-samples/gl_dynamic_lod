@@ -51,7 +51,7 @@
 #ifdef __cplusplus
 namespace dynlod
 {
-  using namespace nvmath;
+  using namespace glm;
 #endif
 
 struct DrawArrays {
